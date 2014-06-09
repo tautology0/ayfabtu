@@ -1,5 +1,10 @@
 #!/usr/bin/perl
 
+# Main Source: http://www.cirt.net/svnpristine
+# Main Source: https://github.com/tautology0/ayfabtu/
+
+# changes: v1.1: Soroush Dalili (@irsdl) - Feb. 2014 - Windows compatibility and better interface!
+
 use LWP::UserAgent;
 use DBI;
 use File::Temp qw/tempfile tempdir/;
@@ -42,17 +47,45 @@ my @NODES;
 # grab the database file
 
 my $target=$ARGV[0];
+my $iswindows=($^O=~/Win/)?1:0; # Are we running on windows?
+
+my $windowsInvalidChars = '[\<\>\:\"\|\?\*]'; # to make it compatible with Windows
+my $windowsInvalidWords = '^(CON|PRN|AUX|NUL|COM1|COM2|COM3|COM4|COM5|COM6|COM7|COM8|COM9|LPT1|LPT2|LPT3|LPT4|LPT5|LPT6|LPT7|LPT8|LPT9)(\.|$)'; # to make it compatible with Windows
+my $illegalWords = '([\.]{2,}|(^[\/]+))'; # to block simple dir traversal
+
+if ($iswindows){
+	print "Windows File System Compatible = true \n";
+}else{
+	print "Windows File System Compatible = false \n";
+}
 
 my $svnurl="http://$ARGV[0]/.svn/wc.db";
 
 my $ua=LWP::UserAgent->new;
-$ua->agent("All Your File Are Belong To Us/1.0");
+$ua->agent("SVNScanner/1.1");
+
+print "Downloading the database...\n";
 
 my $request=HTTP::Request->new(GET => $svnurl);
 my $result=$ua->request($request);
 
 if ($result->status_line !~ /^200 .*/) {
-   die "Could not get svn database";
+	die "Could not get the svn database from $svnurl";
+}else{
+	print "svn database has been detected and downloaded from $svnurl \n";
+	my $quit = 0;
+	until ($quit) {
+		print "Do you want to download the content? \n";
+		print "Enter Y [Default] to continue OR enter anything else to exit: ";
+		chomp(my $input = <STDIN>);
+		
+		if ($input =~ /^[Y]?$/i) {      # Match Yy or blank
+			print "Downloading the content...\n";
+			$quit = 1;
+		}else{
+			die "Exit";
+		}
+	}
 }
 
 my ($dbfileh, $dbfilen) = tempfile();
@@ -69,35 +102,55 @@ my $dbh = DBI->connect("dbi:SQLite:dbname=$dbfilen","","");
 # Now to read it all from pristine
 # create output dir
 my $server=$ARGV[0];
-mkdir output;
+mkdir $server;
 foreach my $node (@NODES)
 {
-   if ($node->{'kind'} eq "dir")
-   {
-      mkdir "output/$node->{'local_relpath'}";
-   }
-   else
-   {
-      my $checksum=substr($node->{'sum'}, 6);
-      my $twochars=substr($checksum, 0, 2);
-      my $svnurl="http://$server/.svn/pristine/$twochars/$checksum.svn-base";
+	if ($node->{'kind'} eq "dir")
+	{
+		my $destDir = "$server/$node->{'local_relpath'}";
+		$destDir =~ s/${illegalWords}/_/ig;
+		if ($iswindows == 1){
+			$destDir =~ s/${windowsInvalidChars}/_/ig;
+			$destDir =~ s/${windowsInvalidWords}/_/ig;
+		}
+		mkdir "$destDir";
+	}
+	else
+	{
+		my $checksum=substr($node->{'sum'}, 6);
+		my $twochars=substr($checksum, 0, 2);
+		my $svnurl="http://$server/.svn/pristine/$twochars/$checksum.svn-base";
 
-      my $fua=LWP::UserAgent->new;
-      $fua->agent("SVNScanner/1.0");
+		my $fua=LWP::UserAgent->new;
+		$fua->agent("SVNScanner/1.1");
 
-      my @brokenup=split(/\//,$node->{'path'});
-      my $pathstr="output/";
-      for (my $i=0;$i < $#brokenup; $i++)
-      {
-         $pathstr="$pathstr$brokenup[$i]/";
-         mkdir "$pathstr";
-      }
+		my @brokenup=split(/\//,$node->{'path'});
+		my $pathstr="$server/";
+		for (my $i=0;$i < $#brokenup; $i++)
+		{
+			$pathstr="$pathstr$brokenup[$i]/";
+			$pathstr =~ s/${illegalWords}/_/ig;
+			if ($iswindows == 1){
+				$pathstr =~ s/${windowsInvalidChars}/_/ig;
+				$pathstr =~ s/${windowsInvalidWords}/_/ig;
+			}
+			mkdir "$pathstr";
+		}
 
-      my $frequest=HTTP::Request->new(GET => $svnurl);
-      my $fresult=$fua->request($frequest);
-      print "grabbing $server/$node->{'path'} from $svnurl\n";
-      open $fh,">output/$node->{'path'}";
-      print $fh $fresult->content;
-      close $fh;
-   }
+		my $frequest=HTTP::Request->new(GET => $svnurl);
+		my $fresult=$fua->request($frequest);
+		my $filepath = "$server/$node->{'path'}";
+		$filepath =~ s/${illegalWords}/_/ig;
+		if ($iswindows == 1){
+			$filepath =~ s/${windowsInvalidChars}/_/ig;
+			$filepath =~ s/${windowsInvalidWords}/_/ig;
+		}
+		print "grabbing $server/$node->{'path'} from $svnurl -- will be saved in $filepath \n";
+		
+		
+		
+		open $fh,">$filepath";
+		print $fh $fresult->content;
+		close $fh;
+	}
 }
