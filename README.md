@@ -36,5 +36,7 @@ optional arguments:
 ```
 
 Examples:
+```
 git-grab https://vulnerablesite.com/ ls
 git-grab https://vulnerabilsite.com/ download \*.php \*.conf
+```
