@@ -34,9 +34,10 @@ optional arguments:
   --verbose        Be verbose
   --outdir OUTDIR  Directory to store output
 ```
+The default for the cache directory is ./.gitgrab and outdir is the domain part of the url.
 
 Examples:
 ```
 git-grab https://vulnerablesite.com/ ls
-git-grab https://vulnerabilsite.com/ download \*.php \*.conf
+git-grab https://vulnerablesite.com/ download \*.php \*.conf
 ```
