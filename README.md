@@ -15,3 +15,26 @@ Current scripts:
 * svn-grab, will extract all files from the pristine directory of the SVN repo
 * hg-grab, will extract files from a Mercurial repo
 * git-grab, will extract files from a git repo.
+
+git-grab has been ported to Python and has a better user interface that means that you can list files and supply a glob to only download important files.
+```
+usage: git-grab [-h] [--cache [CACHE]] [--verbose] [--outdir OUTDIR]
+                url action [files [files ...]]
+
+Abuse .git repos on web servers
+
+positional arguments:
+  url              base URL of site
+  action           Action to perform: ls, download
+  files            list of file globs
+
+optional arguments:
+  -h, --help       show this help message and exit
+  --cache [CACHE]  Directory to cache downloaded files
+  --verbose        Be verbose
+  --outdir OUTDIR  Directory to store output
+```
+
+Examples:
+git-grab https://vulnerablesite.com/ ls
+git-grab https://vulnerabilsite.com/ download \*.php \*.conf
