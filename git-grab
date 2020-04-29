@@ -47,12 +47,13 @@ def readindex(indexfile):
 		entry['id'] = binascii.hexlify(indexfile.read(20))
 		entry['flags'] = struct.unpack(">H", indexfile.read(2))[0]
 		
-		namelength=(entry['flags'] & 0x7ff) + 1
-		entry['name'] = indexfile.read(namelength-1).decode()
+		namelength=(entry['flags'] & 0x7ff)
+		data = indexfile.read(namelength)
+		entry['name'] = data.decode()
 		
 		# deal with padding
 		indexfile.read(1)
-		indexfile.read((8 - ((namelength + 62) % 8))%8)
+		indexfile.read((8 - ((namelength + 63) % 8))%8)
 
 		# Add to output list
 		entries.append(entry)
