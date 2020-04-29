@@ -115,6 +115,11 @@ if not os.path.exists(cachepath):
 if not os.path.exists(outdir):
 	os.makedirs(outdir)
 
+# set up a valid User-Agent to fool any spidering restrictions
+opener = urllib.request.build_opener()
+opener.addheaders = [('user-agent','Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36 SE 2.X MetaSr 1.0')]
+urllib.request.install_opener(opener)
+
 log("main","Parsing index file")
 try:
 	cachefile=opencachefile(f"{url}/.git/index")
