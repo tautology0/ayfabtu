@@ -141,7 +141,7 @@ if args.action == "download":
 
 	for file in files:
 		# Get entry from entries
-		entry=list(filter(lambda x: x['name'] == file, entries))[0]
+		entry=next(entry for entry in entries if entry['name'] == file)
 		# Get hash directory
 		first=entry["id"][0:2].decode()
 		rest =entry["id"][2:].decode()
