@@ -132,7 +132,7 @@ if args.action == "ls":
 	for entry in entries:
 		print(entry['name'])
 
-if args.action == "download":
+if args.action == "download" or args.action == "view":
 	files=set()
 	for file in args.files:
 		outputfiles=fnmatch.filter([x['name'] for x in entries], file)
@@ -154,12 +154,15 @@ if args.action == "download":
 		decompressed=zlib.decompress(thisfile.read())
 		# Now write it to a file
 
-		outfile=f"{outdir}/{entry['name']}"
-		if not os.path.exists(os.path.dirname(outfile)):
-			os.makedirs(os.path.dirname(outfile))
-		output=open(outfile,"wb")
-		type=decompressed[:5].decode()
-		data=decompressed[decompressed.find(b'\0')+1:]
-		output.write(data)
-		output.close()
+		if args.action == "download":
+			outfile=f"{outdir}/{entry['name']}"
+			if not os.path.exists(os.path.dirname(outfile)):
+				os.makedirs(os.path.dirname(outfile))
+			output=open(outfile,"wb")
+			type=decompressed[:5].decode()
+			data=decompressed[decompressed.find(b'\0')+1:]
+			output.write(data)
+			output.close()
+		else:
+			print(decompressed.decode())
 
