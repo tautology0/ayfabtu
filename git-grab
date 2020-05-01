@@ -148,12 +148,13 @@ if args.action == "download" or args.action == "view":
 		log("download",f"Extracting {entry['name']}")
 		try:
 			thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
+			# Now we have it we can compress the data (!)
+			decompressed=zlib.decompress(thisfile.read())
 		except Exception as e:
-			log("download",f"Could not obtain git object file: {e.args[0]}")
-		# Now we have it we can compress the data (!)
-		decompressed=zlib.decompress(thisfile.read())
-		# Now write it to a file
+			log("error",f"Could not obtain git object file: {e.args[0]}")
+			continue
 
+		# Now write it to a file
 		if args.action == "download":
 			outfile=f"{outdir}/{entry['name']}"
 			if not os.path.exists(os.path.dirname(outfile)):
@@ -164,5 +165,6 @@ if args.action == "download" or args.action == "view":
 			output.write(data)
 			output.close()
 		else:
-			print(decompressed.decode())
+			data=decompressed[decompressed.find(b'\0')+1:].decode()
+			print(data)
 
