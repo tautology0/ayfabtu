@@ -112,7 +112,7 @@ if outdir == None:
 cachepath=f"{args.cache}/{urlcheck.hostname}{urlcheck.path}"
 if not os.path.exists(cachepath):
 	os.makedirs(cachepath)
-if not os.path.exists(outdir):
+if args.action == "download" and not os.path.exists(outdir):
 	os.makedirs(outdir)
 
 # set up a valid User-Agent to fool any spidering restrictions
@@ -134,7 +134,10 @@ if args.action == "ls":
 
 if args.action == "download" or args.action == "view":
 	files=set()
-	for file in args.files:
+	params=args.files
+	if params==[]:
+		params=['*']
+	for file in params:
 		outputfiles=fnmatch.filter([x['name'] for x in entries], file)
 		files=set().union(files,outputfiles)
 	log("download",f"Files to extract: {files}")
@@ -145,6 +148,8 @@ if args.action == "download" or args.action == "view":
 		# Get hash directory
 		first=entry["id"][0:2].decode()
 		rest =entry["id"][2:].decode()
+		if args.action == "download":
+			print(f"Downloading {entry['name']}")
 		log("download",f"Extracting {entry['name']}")
 		try:
 			thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
