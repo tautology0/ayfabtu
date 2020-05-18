@@ -4,7 +4,6 @@ import binascii
 import sys
 import urllib.request
 import urllib.parse
-import hexdump
 import argparse
 import os
 import fnmatch

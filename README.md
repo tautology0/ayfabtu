@@ -17,6 +17,8 @@ Current scripts:
 * git-grab, will extract files from a git repo.
 
 git-grab has been ported to Python and has a better user interface that means that you can list files and supply a glob to only download important files.
+
+It just uses standard Python3 libraries so shouldn't need anything special installed.
 ```
 usage: git-grab [-h] [--cache [CACHE]] [--verbose] [--outdir OUTDIR]
                 url action [files [files ...]]
@@ -25,7 +27,7 @@ Abuse .git repos on web servers
 
 positional arguments:
   url              base URL of site
-  action           Action to perform: ls, download
+  action           Action to perform: ls, download, view
   files            list of file globs
 
 optional arguments:
@@ -40,4 +42,5 @@ Examples:
 ```
 git-grab https://vulnerablesite.com/ ls
 git-grab https://vulnerablesite.com/ download \*.php \*.conf
+git-grab https://vulnerablesite.com/ view config.php
 ```
