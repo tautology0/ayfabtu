@@ -94,7 +94,7 @@ parser.add_argument('--cache', help='Directory to cache downloaded files', nargs
 parser.add_argument('--verbose', action='store_true', help='Be verbose')
 parser.add_argument('--outdir',  help='Directory to store output', default=None)
 parser.add_argument('url', help='base URL of site')
-parser.add_argument('action', help='Action to perform: ls, download')
+parser.add_argument('action', help='Action to perform: ls, download, view')
 parser.add_argument('files', help='list of file globs', nargs='*')
 args=parser.parse_args()
 
@@ -131,6 +131,7 @@ entries=readindex(cachefile)
 if args.action == "ls":
 	for entry in entries:
 		print(entry['name'])
+	exit(0)
 
 if args.action == "download" or args.action == "view":
 	files=set()
@@ -151,7 +152,7 @@ if args.action == "download" or args.action == "view":
 			# Now we have it we can compress the data (!)
 			decompressed=zlib.decompress(thisfile.read())
 		except Exception as e:
-			log("error",f"Could not obtain git object file: {e.args[0]}")
+			log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
 			continue
 
 		# Now write it to a file
@@ -167,4 +168,7 @@ if args.action == "download" or args.action == "view":
 		else:
 			data=decompressed[decompressed.find(b'\0')+1:].decode()
 			print(data)
+	exit(0)
+
+print(f"Unknown command: {args.action}") 
 
