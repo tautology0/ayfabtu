@@ -8,6 +8,7 @@ import argparse
 import os
 import fnmatch
 import zlib
+import ssl
 
 def error(facility, logstr):
 	log("error", logstr)
@@ -78,6 +79,7 @@ def opencachefile(url):
 			os.makedirs(dirname)
 	
 		try:
+			ssl._create_default_https_context=ssl._create_unverified_context
 			urllib.request.urlretrieve(f"{url}", filename=cachename)
 		except urllib.error.HTTPError as e:
 			raise Exception(f"Server error: {e.code}")		
