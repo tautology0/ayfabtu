@@ -9,6 +9,8 @@ import os
 import fnmatch
 import zlib
 import ssl
+import configparser
+import re
 
 def error(facility, logstr):
 	log("error", logstr)
@@ -34,6 +36,7 @@ def readindex(indexfile):
 	entries=[]
 
 	for i in range(0, objects):
+		startent=indexfile.tell()
 		entry = {}
 		statinfo = {}
 		statinfo['ctime'] = struct.unpack(">LL", indexfile.read(8))
@@ -52,8 +55,11 @@ def readindex(indexfile):
 		entry['name'] = data.decode()
 		
 		# deal with padding
-		indexfile.read(1)
-		indexfile.read((8 - ((namelength + 63) % 8))%8)
+		#indexfile.read(1)
+		#indexfile.read((8 - ((namelength + 63) % 8))%8)
+		entsize=(62 + namelength + 8) & -8
+		indexfile.seek(startent+entsize)
+		#print(f"{startent:x} {entsize:x} {startent+entsize:x}")
 
 		# Add to output list
 		entries.append(entry)
@@ -132,6 +138,25 @@ entries=readindex(cachefile)
 if args.action == "ls":
 	for entry in entries:
 		print(entry['name'])
+	exit(0)
+
+# Experimental scan option
+if args.action == "scan":
+	# first look at config
+	configfile=opencachefile(f"{url}/.git/config").read().decode()
+	gconfig=configparser.ConfigParser()
+	gconfig.read_string(configfile)
+	if 'remote "origin"' in gconfig:
+		# We have an origin
+		origin=gconfig['remote "origin"']['url']
+		print(f"Repository origin: {origin}")
+	if 'user' in gconfig:
+		print(f"User found: {gconfig['user']['name']} ({gconfig['user']['email']})")
+	# Now look at the contenst of index
+	for entry in entries:
+		if re.match('wp-config.php$', entry['name']):
+			print(f"Wordpress configuration file found: {entry['name']}")
+
 	exit(0)
 
 if args.action == "download" or args.action == "view":
