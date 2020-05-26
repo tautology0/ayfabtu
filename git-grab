@@ -156,6 +156,10 @@ if args.action == "scan":
 	for entry in entries:
 		if re.match('wp-config.php$', entry['name']):
 			print(f"Wordpress configuration file found: {entry['name']}")
+		if re.match('.htaccess$', entry['name']):
+			print(f".htaccess file found: {entry['name']}")
+		if re.match('.DS_store$', entry['name']):
+			print(f".DS_store file found: {entry['name']}")
 
 	exit(0)
 
