@@ -163,6 +163,8 @@ if args.action == "scan":
 			print(f"Joomla configuration file found: {entry['name']}")
 		if re.match('web.config$', entry['name']):
 			print(f"Web.config configuration file found: {entry['name']}")
+		if re.match('Dockerfile$', entry['name']):
+			print(f"Dockerfile file found: {entry['name']}")
 		if re.match('.htaccess$', entry['name']):
 			print(f".htaccess file found: {entry['name']}")
 		if re.match('.DS_store$', entry['name']):
