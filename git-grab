@@ -116,8 +116,6 @@ if urlcheck.scheme == "":
 elif urlcheck.scheme not in ('http', 'https'):
 	raise Exception(f"URL scheme not supported: {urlcheck.scheme}")
 
-print(url)
-
 if outdir == None:
 	outdir=urlcheck.hostname
 
@@ -161,10 +159,33 @@ if args.action == "scan":
 	for entry in entries:
 		if re.match('wp-config.php$', entry['name']):
 			print(f"Wordpress configuration file found: {entry['name']}")
+		if re.match('configuration.php$', entry['name']):
+			print(f"Joomla configuration file found: {entry['name']}")
+		if re.match('web.config$', entry['name']):
+			print(f"Web.config configuration file found: {entry['name']}")
 		if re.match('.htaccess$', entry['name']):
 			print(f".htaccess file found: {entry['name']}")
 		if re.match('.DS_store$', entry['name']):
 			print(f".DS_store file found: {entry['name']}")
+
+	# Any other files
+	req=urllib.request.Request(f"{url}/.git/objects/", method='HEAD')
+	accessible=True
+	try:
+		response=urllib.request.urlopen(req)
+	except urllib.error.HTTPError as e:
+		accessible=False	
+	if accessible:
+		print("Can browse the /.git/objects/ directory")
+
+	req=urllib.request.Request(f"{url}/.git/objects/pack/", method='HEAD')
+	accessible=True
+	try:
+		response=urllib.request.urlopen(req)
+	except urllib.error.HTTPError as e:
+		accessible=False	
+	if accessible:
+		print("Can browse the /.git/objects/pack/ directory")
 
 	exit(0)
 
