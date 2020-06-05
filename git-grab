@@ -113,6 +113,7 @@ urlcheck=urllib.parse.urlparse(args.url)
 if urlcheck.scheme == "":
 	# no scheme assume it's https
 	url=f"https://{url}"
+	urlcheck=urllib.parse.urlparse(url)
 elif urlcheck.scheme not in ('http', 'https'):
 	raise Exception(f"URL scheme not supported: {urlcheck.scheme}")
 
