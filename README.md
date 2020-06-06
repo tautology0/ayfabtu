@@ -21,13 +21,12 @@ git-grab has been ported to Python and has a better user interface that means th
 It just uses standard Python3 libraries so shouldn't need anything special installed.
 ```
 usage: git-grab [-h] [--cache [CACHE]] [--verbose] [--outdir OUTDIR]
-                url action [files [files ...]]
+                --url url action [files [files ...]]
 
 Abuse .git repos on web servers
 
 positional arguments:
-  url              base URL of site
-  action           Action to perform: ls, download, view
+  action           Action to perform: ls, download, view, scan
   files            list of file globs
 
 optional arguments:
@@ -35,12 +34,14 @@ optional arguments:
   --cache [CACHE]  Directory to cache downloaded files
   --verbose        Be verbose
   --outdir OUTDIR  Directory to store output
+  --url URL        URL of site (method option)
 ```
 The default for the cache directory is ./.gitgrab and outdir is the domain part of the url.
 
 Examples:
 ```
-git-grab https://vulnerablesite.com/ ls
-git-grab https://vulnerablesite.com/ download \*.php \*.conf
-git-grab https://vulnerablesite.com/ view config.php
+git-grab --url vulnerablesite.com ls
+git-grab --url https://vulnerablesite.com/ download \*.php \*.conf
+git-grab --url https://vulnerablesite.com/ view config.php
+git-grab --url vulnerablesite.com scan
 ```
