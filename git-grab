@@ -13,6 +13,7 @@ import configparser
 import re
 import json
 import hexdump
+import difflib
 
 def error(facility, logstr):
 	log("error", logstr)
@@ -297,6 +298,52 @@ if args.action == "discover":
 	json.dump(entries, open(indexcache, "w"))
 	exit(0)
 	
+if args.action == "diff":
+	if len(args.files)<3:
+		error("Syntax: diff file version1 version2")
+	dfile=args.files[0]
+	vers1=int(args.files[1])
+	vers2=int(args.files[2])
+
+	try:
+		entry=next(entry for entry in entries if entry['name'] == dfile)
+	except StopIteration:
+		error(f"File {dfile} doesn't exists in index")
+
+	if vers1 > len(entry['ids']): error(f"Version {vers1} does not exist")
+	if vers2 > len(entry['ids']): error(f"Version {vers2} does not exist")
+	if vers1 == vers2: error(f"Cannot diff the same version")
+
+	log("diff","Obtaining files")
+	#Get the first version into a string
+	first=entry["ids"][vers1][0:2]
+	rest =entry["ids"][vers1][2:]
+	try:
+		thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
+		# Now we have it we can compress the data (!)
+		raw=zlib.decompress(thisfile.read())
+		firstfile=raw[raw.find(b'\0')+1:].decode()
+	except Exception as e:
+		log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
+
+	#Get the second version into a string
+	first=entry["ids"][vers2][0:2]
+	rest =entry["ids"][vers2][2:]
+	try:
+		thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
+		# Now we have it we can compress the data (!)
+		raw=zlib.decompress(thisfile.read())
+		secondfile=raw[raw.find(b'\0')+1:].decode()
+	except Exception as e:
+		log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
+
+	for line in difflib.context_diff(firstfile.splitlines(0),
+												secondfile.splitlines(0),
+												fromfile=f"Version {vers1}",
+												tofile=f"Version {vers2}"):
+		print(line)
+
+	exit(0)
 
 if args.action == "download" or args.action == "view":
 	files=set()
@@ -306,8 +353,8 @@ if args.action == "download" or args.action == "view":
 	for file in params:
 		outputfiles=fnmatch.filter([x['name'] for x in entries], file)
 		files=set().union(files,outputfiles)
-	if files == []:
-		print(f"No files match the provided globs")
+	if files == set():
+		print(f"No files matched the provided globs: {params}")
 		exit(1)
 	log("download",f"Files to extract: {files}")
 

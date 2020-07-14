@@ -70,3 +70,7 @@ This will attempt to follow the commit path and recover all possible versions of
 
 This is very noisy and will cause a lot of traffic on the network.
 
+### diff
+This will perform a diff between two versions of a file using Python's difflib. 
+
+```git-grab --url vulnerablesite.com diff admin.php 0 1```
