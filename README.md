@@ -26,7 +26,7 @@ usage: git-grab [-h] [--cache [CACHE]] [--verbose] [--outdir OUTDIR]
 Abuse .git repos on web servers
 
 positional arguments:
-  action           Action to perform: ls, download, view, scan
+  action           Action to perform: ls, download, view, scan, discover
   files            list of file globs
 
 optional arguments:
@@ -35,6 +35,7 @@ optional arguments:
   --verbose        Be verbose
   --outdir OUTDIR  Directory to store output
   --url URL        URL of site (method option)
+  --verison VERS   Retrieve version VERS of file
 ```
 The default for the cache directory is ./.gitgrab and outdir is the domain part of the url.
 
@@ -45,3 +46,26 @@ git-grab --url https://vulnerablesite.com/ download \*.php \*.conf
 git-grab --url https://vulnerablesite.com/ view config.php
 git-grab --url vulnerablesite.com scan
 ```
+
+##Commands
+The various commands do various things with various levels of stealth:
+
+###scan
+This will attempt to scan the git directory for common flaws, such as a WordPress configuration file or whether .git/config contains stuff like passwords.
+
+###ls
+This will list all files, where multiple versions are provided they will be listed by index and that versions hash.
+
+###view
+###download
+These are very similar - the only difference is that view will dump the file to standard out whilst download will download the resourse and save it outdir.
+
+These can take a number of globs after the command, to say, download all globs.
+
+If --version is used then only that version will be attempted to be accessed. If not all versions will be outputed.
+
+###discover
+This will attempt to follow the commit path and recover all possible versions of a file that can be discovered in the archive.
+
+This is very noisy and will cause a lot of traffic on the network.
+

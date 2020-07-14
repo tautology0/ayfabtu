@@ -11,6 +11,8 @@ import zlib
 import ssl
 import configparser
 import re
+import json
+import hexdump
 
 def error(facility, logstr):
 	log("error", logstr)
@@ -23,6 +25,11 @@ def log(facility, logstr):
 # expects a file pointer to a downloaded index file
 # returns a dictionary of file entries
 def readindex(indexfile):
+	# Check for an indexcache - as this will have any files from discover in it
+	if os.path.exists(indexcache):
+		# read entries from the cachepath
+		return json.load(open(indexcache, "r"))
+
 	buffer = indexfile.read(12)
 
 	# Parse the header
@@ -47,7 +54,7 @@ def readindex(indexfile):
 		  struct.unpack(">LLLLLL", buffer)
 
 		entry['statinfo'] = statinfo
-		entry['id'] = binascii.hexlify(indexfile.read(20))
+		entry['ids'] = [binascii.hexlify(indexfile.read(20)).decode()]
 		entry['flags'] = struct.unpack(">H", indexfile.read(2))[0]
 		
 		namelength=(entry['flags'] & 0x7ff)
@@ -64,7 +71,64 @@ def readindex(indexfile):
 		# Add to output list
 		entries.append(entry)
 	
+	# Cache a copy
+	json.dump(entries, open(indexcache, "w"))
 	return entries
+
+def parsecommit(commitfile):
+	data=zlib.decompress(commitfile.read()).decode()
+	commit=re.search("commit .* ([0-9a-f]*)", data)[1]
+	if re.search("parent ([0-9a-f]*)", data)[1]:
+		parent=re.search("parent ([0-9a-f]*)", data)[1]
+	return (commit, parent)
+
+def parsetree(treefile, prefix=""):
+	# Decompress the file
+	data=zlib.decompress(treefile.read())
+	# skip the header
+	ptr=data.find(b'\0')+1
+	while ptr < len(data):
+		# Data is file perms as nnnnnn filename \0
+		# Then 20 bytes hash
+		fheader=data[ptr:ptr+data[ptr:].find(b'\0')]
+		mode=fheader[:fheader.index(b' ')].decode()
+		name=fheader[fheader.index(b' ')+1:].decode()
+		ptr+=data[ptr:].find(b'\0')+1
+		ident=binascii.hexlify(data[ptr:ptr+20]).decode()
+		ptr+=20
+
+		# Before we do anything check whether we know this file
+		try:
+			entry=next(entry for entry in entries if entry['name'] == f"{prefix}{name}")
+		except StopIteration:
+			# It's not in index, add a new entry
+			entry = {}
+			statinfo = {}
+			statinfo['ctime'] = statinfo['mtime'] = 0
+			statinfo['dev'] = statinfo['inode'] = 0
+			statinfo['mode'] = statinfo['uid'] = statinfo['gid'] = 0
+			statinfo['size'] = 0
+	
+			entry['statinfo'] = statinfo
+			entry['ids'] = [ident]
+			entry['flags'] = 0
+			
+			entry['name']=f"{prefix}{name}"
+			if mode[0] != '4':
+				entries.append(entry)
+
+		if ident not in entry['ids']:
+			# If mode starts with a 4 then it's a directory - skip it for now
+			if mode[0] == '4':
+				try:
+					treefile=opencachefile(f"{objectpath}/{ident[0:2]}/{ident[2:]}")
+				except:
+					continue
+				parsetree(treefile, prefix=f"{prefix}{name}/")
+
+			entry['ids'].append(ident)
+
+	return
 
 # Manages a file - opens from cache or downloads to cache
 # cachepath is global, url is the full url of the file
@@ -101,6 +165,7 @@ parser.add_argument('--cache', help='Directory to cache downloaded files', nargs
 parser.add_argument('--verbose', action='store_true', help='Be verbose')
 parser.add_argument('--outdir',  help='Directory to store output', default=None)
 parser.add_argument('--url', help='base URL of site')
+parser.add_argument('--version', help='version of file', type=int)
 parser.add_argument('action', help='Action to perform: ls, download, view')
 parser.add_argument('files', help='list of file globs', nargs='*')
 args=parser.parse_args()
@@ -137,11 +202,17 @@ try:
 	cachefile=opencachefile(f"{url}/.git/index")
 except Exception as e:
 	error("main",f"Could not obtain git index file: {e.args[0]}")
+
+indexcache=f"{cachepath}/indexcache"	
 entries=readindex(cachefile)
 
 if args.action == "ls":
 	for entry in entries:
-		print(entry['name'])
+		versions=len(entry['ids'])
+		print(f"{entry['name']}")
+		if versions > 1:
+			for number, id in enumerate(entry['ids']):
+				print(f"\tVersion {number}: {id}")
 	exit(0)
 
 # Experimental scan option
@@ -192,6 +263,41 @@ if args.action == "scan":
 
 	exit(0)
 
+if args.action == "discover":
+	# first look at config to get the latest refs
+	objectpath=f"{url}/.git/objects"
+	configfile=opencachefile(f"{url}/.git/config").read().decode()
+	gconfig=configparser.ConfigParser()
+	gconfig.read_string(configfile)
+
+	# Find all sections with branch
+	branches=[key for key, value in gconfig.items() if "branch " in key]
+
+	for branch in branches:
+		# We'll be using the branch name - regular expressions to the rescue
+		m=re.match(r'branch "(.*)"', branch)
+		bname=m[1]
+		log("discover",f"Searching branch {bname}")	
+		cfile=opencachefile(f"{url}/.git/refs/remotes/origin/{bname}").read().decode()
+		(commit, parent) = parsecommit(opencachefile(f"{objectpath}/{cfile[0:2]}/{cfile[2:]}"))
+		while parent is not None:
+			log("discover",f"Searching commit {commit}")
+			try:
+				treefile=opencachefile(f"{objectpath}/{commit[0:2]}/{commit[2:]}")
+			except:
+				break
+
+			parsetree(treefile)
+			try:
+				(commit, parent) = parsecommit(opencachefile(f"{objectpath}/{parent[0:2]}/{parent[2:]}"))
+			except:
+				break
+	
+	# Save the updated entries
+	json.dump(entries, open(indexcache, "w"))
+	exit(0)
+	
+
 if args.action == "download" or args.action == "view":
 	files=set()
 	params=args.files
@@ -200,38 +306,49 @@ if args.action == "download" or args.action == "view":
 	for file in params:
 		outputfiles=fnmatch.filter([x['name'] for x in entries], file)
 		files=set().union(files,outputfiles)
+	if files == []:
+		print(f"No files match the provided globs")
+		exit(1)
 	log("download",f"Files to extract: {files}")
 
 	for file in files:
 		# Get entry from entries
 		entry=next(entry for entry in entries if entry['name'] == file)
-		# Get hash directory
-		first=entry["id"][0:2].decode()
-		rest =entry["id"][2:].decode()
-		if args.action == "download":
-			print(f"Downloading {entry['name']}")
-		log("download",f"Extracting {entry['name']}")
-		try:
-			thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
-			# Now we have it we can compress the data (!)
-			decompressed=zlib.decompress(thisfile.read())
-		except Exception as e:
-			log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
-			continue
+		versions=entry["ids"]
+		if args.version:
+			versions=[]
+			if args.version < len(entry["ids"]): 
+				versions.append(entry["ids"][args.version])
+			else:
+				error(f"Version {version} does not exist for file {file}")
+		for id in versions:
+			# Get hash directory
+			first=id[0:2]
+			rest =id[2:]
+			if args.action == "download":
+				print(f"Downloading {entry['name']}")
+			log("download",f"Extracting {entry['name']}")
+			try:
+				thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
+				# Now we have it we can compress the data (!)
+				decompressed=zlib.decompress(thisfile.read())
+			except Exception as e:
+				log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
+				continue
 
-		# Now write it to a file
-		if args.action == "download":
-			outfile=f"{outdir}/{entry['name']}"
-			if not os.path.exists(os.path.dirname(outfile)):
-				os.makedirs(os.path.dirname(outfile))
-			output=open(outfile,"wb")
-			type=decompressed[:5].decode()
-			data=decompressed[decompressed.find(b'\0')+1:]
-			output.write(data)
-			output.close()
-		else:
-			data=decompressed[decompressed.find(b'\0')+1:].decode()
-			print(data)
+			# Now write it to a file
+			if args.action == "download":
+				outfile=f"{outdir}/{entry['name']}"
+				if not os.path.exists(os.path.dirname(outfile)):
+					os.makedirs(os.path.dirname(outfile))
+				output=open(outfile,"wb")
+				type=decompressed[:5].decode()
+				data=decompressed[decompressed.find(b'\0')+1:]
+				output.write(data)
+				output.close()
+			else:
+				data=decompressed[decompressed.find(b'\0')+1:].decode()
+				print(data)
 	exit(0)
 
 print(f"Unknown command: {args.action}") 
