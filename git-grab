@@ -166,7 +166,7 @@ parser.add_argument('--cache', help='Directory to cache downloaded files', nargs
 parser.add_argument('--verbose', action='store_true', help='Be verbose')
 parser.add_argument('--outdir',  help='Directory to store output', default=None)
 parser.add_argument('--url', help='base URL of site')
-parser.add_argument('--version', help='version of file', type=int)
+parser.add_argument('--version', help='version of file', type=int, default=-1)
 parser.add_argument('action', help='Action to perform: ls, download, view')
 parser.add_argument('files', help='list of file globs', nargs='*')
 args=parser.parse_args()
@@ -362,7 +362,7 @@ if args.action == "download" or args.action == "view":
 		# Get entry from entries
 		entry=next(entry for entry in entries if entry['name'] == file)
 		versions=entry["ids"]
-		if args.version:
+		if args.version > -1:
 			versions=[]
 			if args.version < len(entry["ids"]): 
 				versions.append(entry["ids"][args.version])
