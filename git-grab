@@ -279,7 +279,10 @@ if args.action == "discover":
 		m=re.match(r'branch "(.*)"', branch)
 		bname=m[1]
 		log("discover",f"Searching branch {bname}")	
-		cfile=opencachefile(f"{url}/.git/refs/remotes/origin/{bname}").read().decode()
+		try:
+			cfile=opencachefile(f"{url}/.git/refs/remotes/origin/{bname}").read().decode()
+		except:
+			break
 		(commit, parent) = parsecommit(opencachefile(f"{objectpath}/{cfile[0:2]}/{cfile[2:]}"))
 		while parent is not None:
 			log("discover",f"Searching commit {commit}")
