@@ -338,7 +338,7 @@ if args.action == "diff":
 		raw=zlib.decompress(thisfile.read())
 		secondfile=raw[raw.find(b'\0')+1:].decode()
 	except Exception as e:
-		log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
+		error(f"Could not obtain git object file for {dfile}: {e.args[0]}")
 
 	for line in difflib.context_diff(firstfile.splitlines(0),
 												secondfile.splitlines(0),
