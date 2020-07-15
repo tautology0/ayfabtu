@@ -15,7 +15,7 @@ import json
 import hexdump
 import difflib
 
-def error(facility, logstr):
+def error(logstr):
 	log("error", logstr)
 	exit(1)
 
@@ -37,9 +37,9 @@ def readindex(indexfile):
 	(ident, version, objects) = struct.unpack(">4sLL", buffer)
 
 	if ident != b"DIRC":
-		error("index","Not a git index file")
+		error("Not a git index file")
 	if version not in range(2,3):
-		error("index",f"Unknown version of git index file: {version}")
+		error(f"Unknown version of git index file: {version}")
 
 	entries=[]
 
@@ -202,7 +202,7 @@ log("main","Parsing index file")
 try:
 	cachefile=opencachefile(f"{url}/.git/index")
 except Exception as e:
-	error("main",f"Could not obtain git index file: {e.args[0]}")
+	error(f"Could not obtain git index file: {e.args[0]}")
 
 indexcache=f"{cachepath}/indexcache"	
 entries=readindex(cachefile)
@@ -327,7 +327,7 @@ if args.action == "diff":
 		raw=zlib.decompress(thisfile.read())
 		firstfile=raw[raw.find(b'\0')+1:].decode()
 	except Exception as e:
-		log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
+		error(f"Could not obtain git object file for {dfile}: {e.args[0]}")
 
 	#Get the second version into a string
 	first=entry["ids"][vers2][0:2]
@@ -383,7 +383,7 @@ if args.action == "download" or args.action == "view":
 				# Now we have it we can compress the data (!)
 				decompressed=zlib.decompress(thisfile.read())
 			except Exception as e:
-				log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
+				error(f"Could not obtain git object file for {file}: {e.args[0]}")
 				continue
 
 			# Now write it to a file
