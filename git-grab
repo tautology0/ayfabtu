@@ -12,7 +12,6 @@ import ssl
 import configparser
 import re
 import json
-import hexdump
 import difflib
 
 def error(logstr):
