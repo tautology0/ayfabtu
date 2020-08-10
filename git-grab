@@ -241,6 +241,10 @@ if args.action == "scan":
 			print(f".htaccess file found: {entry['name']}")
 		if re.match('.DS_store$', entry['name']):
 			print(f".DS_store file found: {entry['name']}")
+		if re.match('sites/default/settings.php$', entry['name']):
+			print(f"Drupal configuration file found: {entry['name']}")
+		if re.match('sites/default/db_url.inc$', entry['name']):
+			print(f"Drupal database configuration file found: {entry['name']}")
 
 	# Any other files
 	req=urllib.request.Request(f"{url}/.git/objects/", method='HEAD')
