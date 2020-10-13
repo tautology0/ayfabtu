@@ -373,7 +373,7 @@ if args.action == "download" or args.action == "view":
 			if args.version < len(entry["ids"]): 
 				versions.append(entry["ids"][args.version])
 			else:
-				error(f"Version {version} does not exist for file {file}")
+				log("error",f"Version {version} does not exist for file {file}")
 		for id in versions:
 			# Get hash directory
 			first=id[0:2]
@@ -386,7 +386,7 @@ if args.action == "download" or args.action == "view":
 				# Now we have it we can compress the data (!)
 				decompressed=zlib.decompress(thisfile.read())
 			except Exception as e:
-				error(f"Could not obtain git object file for {file}: {e.args[0]}")
+				log("error",f"Could not obtain git object file for {file}: {e.args[0]}")
 				continue
 
 			# Now write it to a file
