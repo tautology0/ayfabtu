@@ -328,8 +328,8 @@ if args.action == "diff":
 	except StopIteration:
 		error(f"File {dfile} doesn't exists in index")
 
-	if vers1 > len(entry['ids']): error(f"Version {vers1} does not exist")
-	if vers2 > len(entry['ids']): error(f"Version {vers2} does not exist")
+	if vers1 > (len(entry['ids']) - 1): error(f"Version {vers1} does not exist")
+	if vers2 > (len(entry['ids']) - 1): error(f"Version {vers2} does not exist")
 	if vers1 == vers2: error(f"Cannot diff the same version")
 
 	log("diff","Obtaining files")
