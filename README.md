@@ -55,7 +55,14 @@ The various commands do various things with various levels of stealth:
 This will attempt to scan the git directory for common flaws, such as a WordPress configuration file or whether .git/config contains stuff like passwords.
 
 ### ls
-This will list all files, where multiple versions are provided they will be listed by index and that versions hash.
+This will list all files, where multiple versions are provided they will be listed by index and that version's hash.
+
+For example:
+```
+config/settings.php
+	Version 0: 7b64f0f207214f9894a2f4d08a95e57f3c773e72
+	Version 1: c19ecf55be45f0b0154c8b937abde5066cf1757c
+```
 
 ### view
 ### download
@@ -68,9 +75,13 @@ If --version is used then only that version will be attempted to be accessed. If
 ### discover
 This will attempt to follow the commit path and recover all possible versions of a file that can be discovered in the archive.
 
-This is very noisy and will cause a lot of traffic on the network.
+This is very noisy and will cause a lot of traffic on the network, and may take a long time to run (depending on the size of the archive. Add --verbose to make yourself comfortable it hasn't crashed.
+
+```git-grab --url vulnerablesite.com discover```
 
 ### diff
 This will perform a diff between two versions of a file using Python's difflib. 
 
 ```git-grab --url vulnerablesite.com diff admin.php 0 1```
+
+Discover will need to be run first so that git-grab can try and discover any different versions in place in the archive.

@@ -117,15 +117,18 @@ def parsetree(treefile, prefix=""):
 			if mode[0] != '4':
 				entries.append(entry)
 
-		if ident not in entry['ids']:
-			# If mode starts with a 4 then it's a directory - skip it for now
-			if mode[0] == '4':
-				try:
-					treefile=opencachefile(f"{objectpath}/{ident[0:2]}/{ident[2:]}")
-				except:
-					continue
-				parsetree(treefile, prefix=f"{prefix}{name}/")
+		# If its a directory, then it may not have changed, but its children
+		# may have, so recurse
+		if mode[0] == '4':
+			print(f"Recursing into {name}")
+			try:
+				treefile=opencachefile(f"{objectpath}/{ident[0:2]}/{ident[2:]}")
+			except:
+				continue
+			parsetree(treefile, prefix=f"{prefix}{name}/")
 
+		if ident not in entry['ids']:
+			log("discover", f"Found new version of {entry['name']}: {ident}")	
 			entry['ids'].append(ident)
 
 	return
@@ -187,6 +190,7 @@ if outdir == None:
 
 # Set up cache
 cachepath=f"{args.cache}/{urlcheck.hostname}{urlcheck.path}"
+print(cachepath)
 if not os.path.exists(cachepath):
 	os.makedirs(cachepath)
 if args.action == "download" and not os.path.exists(outdir):
@@ -276,6 +280,8 @@ if args.action == "discover":
 
 	# Find all sections with branch
 	branches=[key for key, value in gconfig.items() if "branch " in key]
+	branches.append('branch "/HEAD"')
+	branches.append('branch "/ORIG_HEAD"')
 
 	for branch in branches:
 		# We'll be using the branch name - regular expressions to the rescue
@@ -283,7 +289,14 @@ if args.action == "discover":
 		bname=m[1]
 		log("discover",f"Searching branch {bname}")	
 		try:
-			cfile=opencachefile(f"{url}/.git/refs/remotes/origin/{bname}").read().decode()
+			if bname == "/HEAD":
+				hfile=opencachefile(f"{url}/.git{bname}").read().decode()
+				cfile=opencachefile(f"{url}/.git/{hfile[5:]}").read().decode()
+			elif bname == "/ORIG_HEAD":
+				cfile=opencachefile(f"{url}/.git{bname}").read().decode()
+			else:		
+				fname=f"{url}/.git/refs/remotes/origin/{bname}"
+				cfile=opencachefile(fname).read().decode()
 		except:
 			break
 		(commit, parent) = parsecommit(opencachefile(f"{objectpath}/{cfile[0:2]}/{cfile[2:]}"))
