@@ -190,7 +190,6 @@ if outdir == None:
 
 # Set up cache
 cachepath=f"{args.cache}/{urlcheck.hostname}{urlcheck.path}"
-print(cachepath)
 if not os.path.exists(cachepath):
 	os.makedirs(cachepath)
 if args.action == "download" and not os.path.exists(outdir):
