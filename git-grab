@@ -132,7 +132,7 @@ def parsetree(treefile, prefix=""):
 			entry['ids'].append(ident)
 
 	return
-
+        
 # Manages a file - opens from cache or downloads to cache
 # cachepath is global, url is the full url of the file
 def opencachefile(url):
@@ -328,8 +328,8 @@ if args.action == "diff":
 	except StopIteration:
 		error(f"File {dfile} doesn't exists in index")
 
-	if vers1 > len(entry['ids']): error(f"Version {vers1} does not exist")
-	if vers2 > len(entry['ids']): error(f"Version {vers2} does not exist")
+	if vers1 > (len(entry['ids']) - 1): error(f"Version {vers1} does not exist")
+	if vers2 > (len(entry['ids']) - 1): error(f"Version {vers2} does not exist")
 	if vers1 == vers2: error(f"Cannot diff the same version")
 
 	log("diff","Obtaining files")
@@ -385,7 +385,7 @@ if args.action == "download" or args.action == "view":
 			if args.version < len(entry["ids"]): 
 				versions.append(entry["ids"][args.version])
 			else:
-				log("error",f"Version {version} does not exist for file {file}")
+				log("error",f"Version {args.version} does not exist for file {file}")
 		for id in versions:
 			# Get hash directory
 			first=id[0:2]
