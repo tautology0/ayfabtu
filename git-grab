@@ -120,7 +120,6 @@ def parsetree(treefile, prefix=""):
 		# If its a directory, then it may not have changed, but its children
 		# may have, so recurse
 		if mode[0] == '4':
-			print(f"Recursing into {name}")
 			try:
 				treefile=opencachefile(f"{objectpath}/{ident[0:2]}/{ident[2:]}")
 			except:
