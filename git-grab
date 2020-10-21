@@ -362,6 +362,20 @@ if args.action == "diff":
 
 	exit(0)
 
+if args.action == "logs":
+	# Attempt to make sense of the git logs, we can discover from this too
+	# Start with HEAD
+	try:
+		thisfile=opencachefile(f"{url}/.git/logs/HEAD")
+	except Exception as e:
+		error(f"Could not obtain HEAD log")
+
+	for line in thisfile:
+		out=re.search(r"(.+?) (.*?) (.*?>) (.*)?\t(.*)$", line.decode().rstrip("\n"))
+		print(f"{out.group(3)}\n\t{out.group(5)}")
+
+	exit(0)
+
 if args.action == "download" or args.action == "view":
 	files=set()
 	params=args.files

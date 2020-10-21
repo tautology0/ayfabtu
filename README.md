@@ -26,7 +26,7 @@ usage: git-grab [-h] [--cache [CACHE]] [--verbose] [--outdir OUTDIR]
 Abuse .git repos on web servers
 
 positional arguments:
-  action           Action to perform: ls, download, view, scan, discover
+  action           Action to perform: ls, download, view, scan, discover, logs
   files            list of file globs
 
 optional arguments:
@@ -85,3 +85,6 @@ This will perform a diff between two versions of a file using Python's difflib.
 ```git-grab --url vulnerablesite.com diff admin.php 0 1```
 
 Discover will need to be run first so that git-grab can try and discover any different versions in place in the archive.
+
+### logs
+This will dump the logs, showing commit comments and the users doing the commit. A future enhancement will tie this into discovery.
