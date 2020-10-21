@@ -413,6 +413,9 @@ if args.action == "download" or args.action == "view":
 				output.close()
 			else:
 				data=decompressed[decompressed.find(b'\0')+1:].decode()
+				print("---------")
+				print(f"Viewing version {first}{rest}")
+				print("---------")
 				print(data)
 	exit(0)
 
