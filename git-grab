@@ -288,13 +288,13 @@ if args.action == "discover":
 		log("discover",f"Searching branch {bname}")	
 		try:
 			if bname == "/HEAD":
-				hfile=opencachefile(f"{url}/.git{bname}").read().decode()
-				cfile=opencachefile(f"{url}/.git/{hfile[5:]}").read().decode()
+				hfile=opencachefile(f"{url}/.git{bname}").read().decode().rstrip("\n")
+				cfile=opencachefile(f"{url}/.git/{hfile[5:]}").read().decode().rstrip("\n")
 			elif bname == "/ORIG_HEAD":
-				cfile=opencachefile(f"{url}/.git{bname}").read().decode()
+				cfile=opencachefile(f"{url}/.git{bname}").read().decode().rstrip("\n")
 			else:		
 				fname=f"{url}/.git/refs/remotes/origin/{bname}"
-				cfile=opencachefile(fname).read().decode()
+				cfile=opencachefile(fname).read().decode().rstrip("\n")
 		except:
 			break
 		(commit, parent) = parsecommit(opencachefile(f"{objectpath}/{cfile[0:2]}/{cfile[2:]}"))
