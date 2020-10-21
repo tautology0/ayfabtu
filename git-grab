@@ -416,7 +416,7 @@ if args.action == "download" or args.action == "view":
 
 			# Now write it to a file
 			if args.action == "download":
-				outfile=f"{outdir}/{entry['name']}"
+				outfile=f"{outdir}/{first}/{rest}/{entry['name']}"
 				if not os.path.exists(os.path.dirname(outfile)):
 					os.makedirs(os.path.dirname(outfile))
 				output=open(outfile,"wb")
@@ -426,6 +426,9 @@ if args.action == "download" or args.action == "view":
 				output.close()
 			else:
 				data=decompressed[decompressed.find(b'\0')+1:].decode()
+				print("---------")
+				print(f"Viewing version {first}{rest}")
+				print("---------")
 				print(data)
 	exit(0)
 
